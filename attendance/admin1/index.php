@@ -1,0 +1,57 @@
+<?php
+session_start();
+require_once '../classes/Admin.php';
+require_once '../classes/User.php';
+
+if (!isset($_SESSION['user_data']) || $_SESSION['user_data']['role'] !== 'admin') {
+    header('Location: ../login.php');
+    exit;
+}
+$data = $_SESSION['user_data'];
+$admin = new Admin(
+    $data['id'],
+    $data['name'],
+    $data['email'],
+    $data['role'],
+    $data['course_id'],
+    $data['year_level']
+);
+?>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body class="admin-theme">
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="../index.php" class="brand">
+        <div class="logo">AS</div>
+        <h1>Attendance System</h1>
+      </a>
+      <div class="header-actions">
+        <a href="logout.php" class="secondary">Logout</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="auth-card" style="width:100%; max-width:500px; text-align:center;">
+      <h2 class="card-title">Welcome, <?= htmlspecialchars($admin->getName()); ?>!</h2>
+
+      <div class="form" style="margin-top:20px;">
+        <a href="manage_courses.php" class="btn primary">Manage Courses</a>
+        <a href="view_attendance.php" class="btn primary">View Attendance</a>
+        <a href="manage_excuse_letters.php" class="btn primary">Manage Excuse Letters</a>
+      </div>
+    </div>
+  </main>
+
+</body>
+</html>
