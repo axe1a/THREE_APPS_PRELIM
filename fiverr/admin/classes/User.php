@@ -1,0 +1,195 @@
+<?php  
+require_once 'Database.php';
+
+/**
+ * Class for handling User-related operations.
+ * Inherits CRUD methods from the Database class.
+ */
+class User extends Database {
+
+    /**
+     * Starts a new session if one isn't already active.
+     */
+    public function startSession() {
+        if (session_status() == PHP_SESSION_NONE) {
+            session_start();
+        }
+    }
+
+    /**
+     * Checks if the username already exists in the database.
+     * @param string $username The username to check.
+     * @return bool True if username exists, false otherwise.
+     */
+    public function usernameExists($username) {
+        $sql = "SELECT COUNT(*) as username_count FROM fiverr_clone_users WHERE username = ?";
+        $count = $this->executeQuerySingle($sql, [$username]);
+        if ($count['username_count'] > 0) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+    
+    /**
+     * Registers a new user.
+     * @param string $username The user's username.
+     * @param string $email The user's email.
+     * @param string $password The user's password.
+     * @param string $contact_number The user's contact number.
+     * @param int $role_id The user's role ID (1=client, 2=freelancer, 3=admin).
+     * @return bool True on success, false on failure.
+     */
+    public function registerUser($username, $email, $password, $contact_number, $role_id = 1) {
+        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+        $sql = "INSERT INTO fiverr_clone_users (username, email, password, contact_number, role_id) VALUES (?, ?, ?, ?, ?)";
+        try {
+            $this->executeNonQuery($sql, [$username, $email, $hashed_password, $contact_number, $role_id]);
+            return true;
+        } catch (\PDOException $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Logs in a user by verifying credentials.
+     * @param string $email The user's email.
+     * @param string $password The user's password.
+     * @return bool True on success, false on failure.
+     */
+    public function loginUser($email, $password) {
+        $sql = "SELECT u.user_id, u.username, u.password, u.role_id, r.role_name 
+                FROM fiverr_clone_users u 
+                JOIN user_roles r ON u.role_id = r.role_id 
+                WHERE u.email = ?";
+        $user = $this->executeQuerySingle($sql, [$email]);
+
+        if ($user && password_verify($password, $user['password'])) {
+            $this->startSession();
+            $_SESSION['user_id'] = $user['user_id'];
+            $_SESSION['username'] = $user['username'];
+            $_SESSION['role_id'] = $user['role_id'];
+            $_SESSION['role_name'] = $user['role_name'];
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Checks if a user is currently logged in.
+     * @return bool
+     */
+    public function isLoggedIn() {
+        $this->startSession();
+        return isset($_SESSION['user_id']);
+    }
+
+    /**
+     * Checks if the logged-in user is an admin.
+     * @return bool
+     */
+    public function isAdmin() {
+        $this->startSession();
+        return isset($_SESSION['role_name']) && $_SESSION['role_name'] === 'fiverr_administrator';
+    }
+
+    /**
+     * Checks if the logged-in user is a fiverr administrator.
+     * @return bool
+     */
+    public function isFiverrAdministrator() {
+        $this->startSession();
+        return isset($_SESSION['role_name']) && $_SESSION['role_name'] === 'fiverr_administrator';
+    }
+
+    /**
+     * Checks if the logged-in user is a freelancer.
+     * @return bool
+     */
+    public function isFreelancer() {
+        $this->startSession();
+        return isset($_SESSION['role_name']) && $_SESSION['role_name'] === 'freelancer';
+    }
+
+    /**
+     * Checks if the logged-in user is a client.
+     * @return bool
+     */
+    public function isClient() {
+        $this->startSession();
+        return isset($_SESSION['role_name']) && $_SESSION['role_name'] === 'client';
+    }
+
+    /**
+     * Gets all available user roles.
+     * @return array All user roles.
+     */
+    public function getUserRoles() {
+        $sql = "SELECT * FROM user_roles ORDER BY role_name ASC";
+        return $this->executeQuery($sql);
+    }
+
+    /**
+     * Updates a user's role.
+     * @param int $user_id The user ID.
+     * @param int $role_id The new role ID.
+     * @return bool Success status.
+     */
+    public function updateUserRole($user_id, $role_id) {
+        $sql = "UPDATE fiverr_clone_users SET role_id = ? WHERE user_id = ?";
+        return $this->executeNonQuery($sql, [$role_id, $user_id]);
+    }
+
+    /**
+     * Logs out the current user.
+     */
+    public function logout() {
+        $this->startSession();
+        session_unset();
+        session_destroy();
+    }
+
+    /**
+     * Retrieves fiverr_clone_users from the database.
+     * @param int|null $id The user ID to retrieve, or null for all fiverr_clone_users.
+     * @return array
+     */
+    public function getUsers($id = null) {
+        if ($id) {
+            $sql = "SELECT * FROM fiverr_clone_users WHERE user_id = ?";
+            return $this->executeQuerySingle($sql, [$id]);
+        }
+        $sql = "SELECT u.*, r.role_name FROM fiverr_clone_users u JOIN user_roles r ON u.role_id = r.role_id ORDER BY u.username ASC";
+        return $this->executeQuery($sql);
+    }
+
+    /**
+     * Updates a user's information.
+     * @param int $id The user ID to update.
+     * @param string $username The new username.
+     * @param string $email The new email.
+     * @param int $role_id The new role ID.
+     * @return int The number of affected rows.
+     */
+    public function updateUser($user_id, $username, $email, $contact_number, $bio_description, $role_id, $display_picture = "") {
+        if (empty($display_picture)) {
+            $sql = "UPDATE fiverr_clone_users SET username = ?, email = ?, contact_number = ?, bio_description = ?, role_id = ? WHERE user_id = ?";
+            return $this->executeNonQuery($sql, [$username, $email, $contact_number, $bio_description, $role_id, $user_id]);
+        } else {
+            $sql = "UPDATE fiverr_clone_users SET username = ?, email = ?, contact_number = ?, bio_description = ?, role_id = ?, display_picture = ? WHERE user_id = ?";
+            return $this->executeNonQuery($sql, [$username, $email, $contact_number, $bio_description, $role_id, $display_picture, $user_id]);
+        }
+    }
+
+    /**
+     * Deletes a user.
+     * @param int $id The user ID to delete.
+     * @return int The number of affected rows.
+     */
+    public function deleteUser($id) {
+        $sql = "DELETE FROM fiverr_clone_users WHERE user_id = ?";
+        return $this->executeNonQuery($sql, [$id]);
+    }
+}
+?>
